@@ -46,6 +46,25 @@ def test_fit():
     assert torch.allclose(model.probs, expected_probs, atol=1e-4)
 
 
+def test_fit_high_smoothing():
+    model = NGramCharacter(n=1)
+    words = ["a", "ac", "babc"]
+    model.fit(words, smoothing=1e6)
+
+    assert model.grams == ["$", "a", "b", "c"]
+    assert model.chars == ["$", "a", "b", "c"]
+
+    expected_probs = torch.tensor(
+        [
+            [0.25, 0.25, 0.25, 0.25],
+            [0.25, 0.25, 0.25, 0.25],
+            [0.25, 0.25, 0.25, 0.25],
+            [0.25, 0.25, 0.25, 0.25],
+        ]
+    )
+    assert torch.allclose(model.probs, expected_probs, atol=1e-4)
+
+
 def test_generate_character():
     model = NGramCharacter(n=1)
     model.grams = ["$", "a", "b"]
@@ -65,6 +84,20 @@ def test_generate_character():
     actual_freq = Counter(results)
     # "a" frequency should be close to 75 and "b" close to 25
     expected_freq = Counter({"a": 78, "b": 22})
+
+    assert actual_freq == expected_freq
+
+
+def test_generate_character_unseen_gram():
+    model = NGramCharacter(n=1)
+    model.chars = ["$", "a", "b"]
+    model.char_to_idx = {"$": 0, "a": 1, "b": 1}
+
+    generator = torch.Generator().manual_seed(12345)
+    results = [model.generate_character(generator, "$") for _ in range(100)]
+    actual_freq = Counter(results)
+    # frequencies should be close to equal
+    expected_freq = Counter({"$": 36, "a": 30, "b": 34})
 
     assert actual_freq == expected_freq
 

@@ -34,7 +34,7 @@ class NGramCharacter:
 
         return grams, next_char
 
-    def fit(self, words: List[str]) -> None:
+    def fit(self, words: List[str], smoothing: float = 0.0) -> None:
         grams, next_char = self.gram_and_next_char(words)
         self.grams = sorted(set(grams))
         self.chars = sorted(set(next_char))
@@ -42,7 +42,7 @@ class NGramCharacter:
         self.char_to_idx = {char: idx for idx, char in enumerate(self.chars)}
 
         # Count frequencies
-        self.probs = torch.zeros(len(self.grams), len(self.chars))
+        self.probs = torch.full((len(self.grams), len(self.chars)), smoothing)
         for g, c in zip(grams, next_char):
             gram_idx = self.gram_to_idx[g]
             char_idx = self.char_to_idx[c]
@@ -52,9 +52,15 @@ class NGramCharacter:
         self.probs /= self.probs.sum(dim=1, keepdim=True)
 
     def generate_character(self, generator: torch.Generator, prev_gram: str) -> str:
-        gram_idx = self.gram_to_idx[prev_gram]
+        if prev_gram in self.gram_to_idx:
+            gram_idx = self.gram_to_idx[prev_gram]
+            P = self.probs[gram_idx]
+        else:
+            # Uniform distribution if this gram has not been seen in training
+            P = torch.full((1, len(self.chars)), 1.0 / len(self.chars))
+
         char_idx = torch.multinomial(
-            self.probs[gram_idx], num_samples=1, replacement=True, generator=generator
+            P, num_samples=1, replacement=True, generator=generator
         ).item()
         return self.chars[char_idx]
 
